@@ -2,6 +2,18 @@
 
 Welcome to the ImageEdit documentation! This directory contains comprehensive documentation for developers and users of the ImageEdit iOS application.
 
+## 📱 About ImageEdit
+
+ImageEdit is an AI-powered image transformation app that allows users to modify images using natural language prompts. Built with SwiftUI for iOS 18.5+, it provides a modern, intuitive interface for creative image editing.
+
+### Key Features
+- 🎨 Text-prompt based image transformation
+- 📸 Full-screen image viewing with gestures
+- ⚙️ Customizable generation settings
+- 📚 Automatic history with thumbnails
+- 💾 Easy saving and sharing
+- 🎯 Modern SwiftUI design
+
 ## 📚 Documentation Structure
 
 ### [ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -44,18 +56,6 @@ Quick start guide containing:
 - **New Developer?** Start with [GETTING_STARTED.md](./GETTING_STARTED.md)
 - **Understanding the Code?** Read [ARCHITECTURE.md](./ARCHITECTURE.md)
 - **Using the App?** Check [FEATURES.md](./FEATURES.md)
-
-## 📱 About ImageEdit
-
-ImageEdit is an AI-powered image transformation app that allows users to modify images using natural language prompts. Built with SwiftUI for iOS 18.5+, it provides a modern, intuitive interface for creative image editing.
-
-### Key Features
-- 🎨 Text-prompt based image transformation
-- 📸 Full-screen image viewing with gestures
-- ⚙️ Customizable generation settings
-- 📚 Automatic history with thumbnails
-- 💾 Easy saving and sharing
-- 🎯 Modern SwiftUI design
 
 ## 🛠 Technology Stack
 
