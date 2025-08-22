@@ -135,6 +135,7 @@ fileprivate extension String {
 struct ContentView: View {
     @StateObject private var api = APIClient()
     @StateObject private var settings = Settings.shared
+    @StateObject private var historyManager = HistoryManager.shared
     @State private var selectedItem: PhotosPickerItem?
     @State private var pickedImage: UIImage?
     @State private var pickedImageData: Data?
@@ -149,9 +150,11 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @Environment(\.openURL) private var openURL
     @State private var resultAbsoluteURL: URL?
+    @State private var resultRelativeURL: String?
     @State private var showingInputFullScreen = false
     @State private var showingResultFullScreen = false
     @State private var showingSettings = false
+    @State private var showingHistory = false
 
     var body: some View {
         NavigationView {
@@ -159,6 +162,9 @@ struct ContentView: View {
                 // Background color
                 Color(UIColor.systemGroupedBackground)
                     .ignoresSafeArea()
+                    .onTapGesture {
+                        hideKeyboard()
+                    }
                 
                 ScrollView {
                     VStack(spacing: 20) {
@@ -175,12 +181,24 @@ struct ContentView: View {
                                 }
                                 Spacer()
                                 
-                                Button {
-                                    showingSettings = true
-                                } label: {
-                                    Image(systemName: "gearshape.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.secondary)
+                                HStack(spacing: 16) {
+                                    Button {
+                                        hideKeyboard()
+                                        showingHistory = true
+                                    } label: {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .font(.title2)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    
+                                    Button {
+                                        hideKeyboard()
+                                        showingSettings = true
+                                    } label: {
+                                        Image(systemName: "gearshape.fill")
+                                            .font(.title2)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                             .padding(.horizontal)
@@ -300,6 +318,7 @@ struct ContentView: View {
                         
                         // Generate Button
                         Button {
+                            hideKeyboard()
                             Task { await submit() }
                         } label: {
                             HStack {
@@ -470,6 +489,9 @@ struct ContentView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
+        .sheet(isPresented: $showingHistory) {
+            HistoryView()
+        }
         .onAppear {
             // Initialize with settings values if not already set
             if steps == 0 {
@@ -479,6 +501,11 @@ struct ContentView: View {
                 cfg = settings.defaultCFGScale
             }
         }
+    }
+    
+    // Helper function to dismiss keyboard
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
     
     // Computed properties for status styling
@@ -573,6 +600,17 @@ struct ContentView: View {
                         statusText = "Ready"
                     }
                     resultAbsoluteURL = absoluteResultURL(path)   // <- keep the URL for share/open
+                    resultRelativeURL = path
+                    
+                    // Save to history
+                    historyManager.addItem(
+                        prompt: prompt,
+                        imageURL: path,
+                        image: img,
+                        steps: Int(steps),
+                        cfgScale: cfg,
+                        apiEndpoint: settings.apiEndpoint
+                    )
                 }
                 withAnimation {
                     isBusy = false
