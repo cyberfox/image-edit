@@ -1,0 +1,26 @@
+# Core dependencies
+fastapi==0.115.14
+uvicorn[standard]==0.35.0
+python-multipart==0.0.20
+pydantic==2.11.7
+pydantic_core==2.33.2
+
+# Image processing
+Pillow==10.4.0
+
+# Deep learning framework
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
+
+# Hugging Face Diffusers for Qwen model
+diffusers==0.35.1
+transformers==4.56.0
+accelerate==1.10.0
+safetensors==0.6.2
+
+# Optional but recommended for better performance
+# xformers==0.0.28  # Uncomment if you want memory-efficient attention (requires matching torch/CUDA versions)
+
+# To run the server:
+# uvicorn image-edit-server:app --host 0.0.0.0 --port 8000
