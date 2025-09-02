@@ -48,6 +48,23 @@ struct JobStatus: Codable {
     }
 }
 
+struct ServerStatus: Codable {
+    let ok: Bool
+    let model: String
+    let modelLoaded: Bool
+    let timeoutMinutes: Double
+    let minutesSinceLastRequest: Double
+    let minutesUntilUnload: Double?
+    
+    enum CodingKeys: String, CodingKey {
+        case ok, model
+        case modelLoaded = "model_loaded"
+        case timeoutMinutes = "timeout_minutes"
+        case minutesSinceLastRequest = "minutes_since_last_request"
+        case minutesUntilUnload = "minutes_until_unload"
+    }
+}
+
 // MARK: - API
 final class APIClient: NSObject, ObservableObject, URLSessionTaskDelegate {
     private lazy var session: URLSession = {
@@ -125,6 +142,33 @@ final class APIClient: NSObject, ObservableObject, URLSessionTaskDelegate {
         }
         return img
     }
+    
+    func checkHealth() async throws -> ServerStatus {
+        guard let baseURL = Settings.shared.apiURL else {
+            throw NSError(domain: "api", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid API endpoint"])
+        }
+        let url = baseURL.appendingPathComponent("/health")
+        let (data, resp) = try await session.data(from: url)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw NSError(domain: "health", code: 5, userInfo: [NSLocalizedDescriptionKey: "Health check failed"])
+        }
+        return try JSONDecoder().decode(ServerStatus.self, from: data)
+    }
+    
+    func unloadModel() async throws -> [String: String] {
+        guard let baseURL = Settings.shared.apiURL else {
+            throw NSError(domain: "api", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid API endpoint"])
+        }
+        let url = baseURL.appendingPathComponent("/model/unload")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        
+        let (data, resp) = try await session.data(for: req)
+        guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw NSError(domain: "unload", code: 6, userInfo: [NSLocalizedDescriptionKey: "Model unload failed"])
+        }
+        return try JSONDecoder().decode([String: String].self, from: data)
+    }
 }
 
 fileprivate extension String {
@@ -155,6 +199,8 @@ struct ContentView: View {
     @State private var showingResultFullScreen = false
     @State private var showingSettings = false
     @State private var showingHistory = false
+    @State private var serverStatus: ServerStatus?
+    @State private var healthCheckTimer: Timer?
 
     var body: some View {
         NavigationView {
@@ -175,13 +221,48 @@ struct ContentView: View {
                                     Text("AI Image Editor")
                                         .font(.largeTitle)
                                         .fontWeight(.bold)
-                                    Text("Transform your images with AI")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 8) {
+                                        Text("Transform your images with AI")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                        
+                                        // Server status indicator
+                                        if let status = serverStatus {
+                                            HStack(spacing: 4) {
+                                                Circle()
+                                                    .fill(status.modelLoaded ? Color.green : Color.orange)
+                                                    .frame(width: 8, height: 8)
+                                                Text(status.modelLoaded ? "Model Ready" : "Model Unloaded")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                                if status.modelLoaded, let minutes = status.minutesUntilUnload {
+                                                    Text("(\(Int(minutes))m)")
+                                                        .font(.caption2)
+                                                        .foregroundColor(.secondary.opacity(0.7))
+                                                }
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Color(UIColor.tertiarySystemGroupedBackground))
+                                            .cornerRadius(8)
+                                        }
+                                    }
                                 }
                                 Spacer()
                                 
                                 HStack(spacing: 16) {
+                                    // Model unload button (subtle)
+                                    if serverStatus?.modelLoaded == true {
+                                        Button {
+                                            Task { await unloadModel() }
+                                        } label: {
+                                            Image(systemName: "moon.zzz")
+                                                .font(.title3)
+                                                .foregroundColor(.secondary.opacity(0.7))
+                                        }
+                                        .help("Unload model to free memory")
+                                    }
+                                    
                                     Button {
                                         hideKeyboard()
                                         showingHistory = true
@@ -500,6 +581,19 @@ struct ContentView: View {
             if cfg == 0 {
                 cfg = settings.defaultCFGScale
             }
+            
+            // Start health check polling
+            startHealthCheckPolling()
+        }
+        .onDisappear {
+            // Stop health check polling
+            healthCheckTimer?.invalidate()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            // Immediate health check when returning to app
+            Task {
+                await performHealthCheck()
+            }
         }
     }
     
@@ -626,6 +720,55 @@ struct ContentView: View {
             }
 
             try await Task.sleep(nanoseconds: 3_000_000_000) // 3s
+        }
+    }
+    
+    private func startHealthCheckPolling() {
+        // Initial health check
+        Task {
+            await performHealthCheck()
+        }
+        
+        // Poll every 30 seconds
+        healthCheckTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+            Task {
+                await self.performHealthCheck()
+            }
+        }
+    }
+    
+    @MainActor
+    private func performHealthCheck() async {
+        do {
+            let status = try await api.checkHealth()
+            withAnimation {
+                self.serverStatus = status
+            }
+        } catch {
+            // Silently fail - don't show errors for background health checks
+            print("Health check failed: \(error)")
+        }
+    }
+    
+    @MainActor
+    private func unloadModel() async {
+        do {
+            _ = try await api.unloadModel()
+            // Refresh status after unload
+            await performHealthCheck()
+            withAnimation {
+                statusText = "Model unloaded"
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                withAnimation {
+                    statusText = "Ready"
+                }
+            }
+        } catch {
+            withAnimation {
+                errorMessage = "Failed to unload model"
+            }
         }
     }
 }
