@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Editor</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1>AI Image Editor</h1>
+                    <div class="subtitle-row">
+                        <p class="subtitle">Transform your images with AI</p>
+                        <div id="serverStatus" class="server-status hidden">
+                            <span class="status-dot"></span>
+                            <span class="status-text">Model Ready</span>
+                            <span class="status-time"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button id="unloadBtn" class="icon-btn unload-btn hidden" title="Unload model to free memory">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3"/>
+                            <path d="M12 6v6l4 2"/>
+                            <circle cx="17" cy="5" r="1" fill="currentColor"/>
+                            <circle cx="21" cy="5" r="1" fill="currentColor"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Image Upload Card -->
+        <div class="card">
+            <div class="image-upload-area">
+                <input type="file" id="imageInput" accept="image/*" hidden>
+                <button id="uploadBtn" class="upload-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                    <span id="uploadBtnText">Select Image</span>
+                </button>
+                
+                <div id="imagePreview" class="image-preview hidden">
+                    <div class="preview-header">
+                        <h3>Input Image</h3>
+                    </div>
+                    <img id="previewImg" alt="Selected image">
+                </div>
+            </div>
+        </div>
+
+        <!-- Prompt Card -->
+        <div class="card">
+            <h3>Edit Instructions</h3>
+            <textarea id="promptInput" 
+                      placeholder="Describe how you want to transform the image..." 
+                      rows="4"></textarea>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="card">
+            <h3>Generation Settings</h3>
+            <div class="settings-group">
+                <div class="setting-item">
+                    <label for="stepsSlider">
+                        <span>Steps</span>
+                        <span id="stepsValue" class="value">50</span>
+                    </label>
+                    <input type="range" id="stepsSlider" min="10" max="75" value="50" step="1">
+                </div>
+                
+                <div class="setting-item">
+                    <label for="cfgSlider">
+                        <span>Guidance Scale</span>
+                        <span id="cfgValue" class="value">4.0</span>
+                    </label>
+                    <input type="range" id="cfgSlider" min="1" max="8" value="4" step="0.1">
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <button id="generateBtn" class="generate-btn" disabled>
+            <svg class="sparkle-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+            </svg>
+            <span class="spinner hidden"></span>
+            <span id="generateBtnText">Generate</span>
+        </button>
+
+        <!-- Progress Card -->
+        <div id="progressCard" class="card hidden">
+            <div class="progress-header">
+                <div class="status-info">
+                    <span id="statusIcon" class="status-icon">⏳</span>
+                    <span id="statusText">Ready</span>
+                </div>
+                <span id="progressPercent">0%</span>
+            </div>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+
+        <!-- Result Card -->
+        <div id="resultCard" class="card hidden">
+            <div class="result-header">
+                <h3>Generated Image</h3>
+            </div>
+            <img id="resultImg" alt="Generated image">
+            <div class="result-actions">
+                <button id="downloadBtn" class="action-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download
+                </button>
+                <button id="newBtn" class="action-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                    New Edit
+                </button>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message hidden">
+            <span id="errorText"></span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

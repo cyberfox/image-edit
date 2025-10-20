@@ -10,6 +10,8 @@ from PIL import Image
 import torch
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
 
@@ -108,6 +110,26 @@ def ensure_model_loaded():
 ensure_model_loaded()
 
 app = FastAPI(title="Qwen Image Edit API")
+
+# Add CORS middleware for web app
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify your domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files for web interface
+if os.path.exists("./static"):
+    app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+    
+    # Redirect root to web app
+    from fastapi.responses import RedirectResponse
+    
+    @app.get("/")
+    def read_root():
+        return RedirectResponse(url="/static/index.html")
 
 # -----------------------
 # Helpers
