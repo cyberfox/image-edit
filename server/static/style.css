@@ -129,21 +129,73 @@ body {
     font-weight: 600;
 }
 
-/* Image Upload */
-.image-upload-area {
+/* Image Upload - Multiple Images */
+.image-slots {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.image-slot {
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 16px;
     text-align: center;
+}
+
+.image-slot-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.image-slot-header h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.required-badge {
+    font-size: 11px;
+    font-weight: 500;
+    color: #666;
+    background: #e0e0e0;
+    padding: 2px 8px;
+    border-radius: 8px;
+}
+
+.remove-image-btn {
+    background: none;
+    border: none;
+    color: #ff5252;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.remove-image-btn:hover {
+    background: rgba(255, 82, 82, 0.1);
 }
 
 .upload-btn {
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 16px 32px;
+    padding: 12px 24px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     border: none;
-    border-radius: 16px;
-    font-size: 16px;
+    border-radius: 12px;
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -160,21 +212,58 @@ body {
 }
 
 .image-preview {
-    margin-top: 24px;
-}
-
-.preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
+    margin-top: 16px;
 }
 
 .image-preview img {
     max-width: 100%;
-    max-height: 400px;
-    border-radius: 16px;
+    max-height: 300px;
+    border-radius: 12px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.add-image-btn {
+    width: 100%;
+    padding: 12px;
+    background: white;
+    border: 2px dashed #667eea;
+    border-radius: 12px;
+    color: #667eea;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s;
+    margin-top: 8px;
+}
+
+.add-image-btn:hover:not(:disabled) {
+    background: rgba(102, 126, 234, 0.05);
+    border-color: #764ba2;
+}
+
+.add-image-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.multi-image-tip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: rgba(102, 126, 234, 0.1);
+    border-radius: 10px;
+    font-size: 13px;
+    color: #667eea;
+    margin-top: 8px;
+}
+
+.multi-image-tip svg {
+    flex-shrink: 0;
 }
 
 /* Prompt Input */
