@@ -304,7 +304,7 @@ struct ContentView: View {
                                                 .font(.headline)
                                                 .foregroundColor(index == 0 ? .primary : .secondary)
 
-                                            if index == 0 {
+                                            if index == 0 && activeImageCount == 1 {
                                                 Text("(Required)")
                                                     .font(.caption)
                                                     .foregroundColor(.secondary)
@@ -312,8 +312,9 @@ struct ContentView: View {
 
                                             Spacer()
 
-                                            // Remove button for images 2 and 3
-                                            if index > 0 {
+                                            // Remove button - show for all images when there are 2+ images
+                                            // Only show for images 2+ when there's just 1 image
+                                            if activeImageCount > 1 {
                                                 Button {
                                                     removeImage(at: index)
                                                 } label: {
@@ -689,31 +690,25 @@ struct ContentView: View {
 
     // MARK: - Actions
     private func removeImage(at index: Int) {
-        guard index > 0 && index < 3 else { return }
+        // Can't remove if only one image (need at least one)
+        guard activeImageCount > 1 && index >= 0 && index < activeImageCount else { return }
 
         withAnimation {
-            // Clear the image at this index
-            pickedImages[index] = nil
-            pickedImageDatas[index] = nil
-            selectedItems[index] = nil
-
-            // If removing the last slot, decrease active count
-            if index == activeImageCount - 1 {
-                activeImageCount -= 1
-            } else {
-                // Shift images down to fill the gap
-                for i in index..<(activeImageCount - 1) {
-                    pickedImages[i] = pickedImages[i + 1]
-                    pickedImageDatas[i] = pickedImageDatas[i + 1]
-                    selectedItems[i] = selectedItems[i + 1]
-                }
-                // Clear the last slot
-                let lastIndex = activeImageCount - 1
-                pickedImages[lastIndex] = nil
-                pickedImageDatas[lastIndex] = nil
-                selectedItems[lastIndex] = nil
-                activeImageCount -= 1
+            // Shift images down to fill the gap
+            for i in index..<(activeImageCount - 1) {
+                pickedImages[i] = pickedImages[i + 1]
+                pickedImageDatas[i] = pickedImageDatas[i + 1]
+                selectedItems[i] = selectedItems[i + 1]
             }
+
+            // Clear the last slot
+            let lastIndex = activeImageCount - 1
+            pickedImages[lastIndex] = nil
+            pickedImageDatas[lastIndex] = nil
+            selectedItems[lastIndex] = nil
+
+            // Decrease active count
+            activeImageCount -= 1
         }
     }
 

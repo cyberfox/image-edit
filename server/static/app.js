@@ -63,11 +63,16 @@ function createImageSlot(index) {
     slotDiv.className = 'image-slot';
     slotDiv.id = `imageSlot${index}`;
 
+    // Show "Required" badge only for first image when there's only 1 image
+    // Show trash icon for all images when there are 2+ images
+    const showRequired = index === 0 && activeImageCount === 1;
+    const showTrash = activeImageCount > 1;
+
     slotDiv.innerHTML = `
         <div class="image-slot-header">
             <h3>Image ${index + 1}</h3>
-            ${index === 0 ? '<span class="required-badge">Required</span>' : ''}
-            ${index > 0 ? `
+            ${showRequired ? '<span class="required-badge">Required</span>' : ''}
+            ${showTrash ? `
                 <button class="remove-image-btn" onclick="removeImageSlot(${index})" title="Remove image">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <polyline points="3 6 5 6 21 6"/>
@@ -125,23 +130,38 @@ function handleImageSelect(e, index) {
 
 function addImageSlot() {
     if (activeImageCount < 3) {
-        createImageSlot(activeImageCount);
         activeImageCount++;
+
+        // Recreate all slots to update trash icon visibility
+        imageSlots.innerHTML = '';
+        for (let i = 0; i < activeImageCount; i++) {
+            createImageSlot(i);
+            // Restore the file if it exists
+            if (selectedFiles[i]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewImg = document.getElementById(`previewImg${i}`);
+                    const imagePreview = document.getElementById(`imagePreview${i}`);
+                    const uploadBtnText = document.getElementById(`uploadBtnText${i}`);
+
+                    previewImg.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                    uploadBtnText.textContent = `Change Image ${i + 1}`;
+                };
+                reader.readAsDataURL(selectedFiles[i]);
+            }
+        }
+
         updateAddImageButton();
         updateMultiImageTip();
     }
 }
 
 function removeImageSlot(index) {
-    if (index === 0) return; // Can't remove first image
+    // Can't remove if only one image (need at least one)
+    if (activeImageCount <= 1) return;
 
-    // Remove the slot element
-    const slot = document.getElementById(`imageSlot${index}`);
-    if (slot) {
-        slot.remove();
-    }
-
-    // Shift files down
+    // Shift files down to fill the gap
     for (let i = index; i < activeImageCount - 1; i++) {
         selectedFiles[i] = selectedFiles[i + 1];
     }
@@ -149,7 +169,7 @@ function removeImageSlot(index) {
 
     activeImageCount--;
 
-    // Recreate all slots to fix numbering
+    // Recreate all slots to fix numbering and update UI
     imageSlots.innerHTML = '';
     for (let i = 0; i < activeImageCount; i++) {
         createImageSlot(i);
