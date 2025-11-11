@@ -73,8 +73,7 @@ final class APIClient: NSObject, ObservableObject, URLSessionTaskDelegate {
         return URLSession(configuration: cfg, delegate: self, delegateQueue: nil)
     }()
 
-    func submitEdit(imageData: Data,
-                    filename: String,
+    func submitEdit(imageDatas: [Data],
                     prompt: String,
                     steps: Int,
                     trueCfgScale: Double,
@@ -100,12 +99,18 @@ final class APIClient: NSObject, ObservableObject, URLSessionTaskDelegate {
         addField("true_cfg_scale", String(trueCfgScale))
         if let seed { addField("seed", String(seed)) }
 
-        // file part
-        body.append("--\(boundary)\r\n".data())
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data())
-        body.append("Content-Type: image/jpeg\r\n\r\n".data())
-        body.append(imageData)
-        body.append("\r\n".data())
+        // Add up to 3 image files
+        let fileNames = ["file", "file2", "file3"]
+        for (index, imageData) in imageDatas.enumerated() {
+            guard index < 3 else { break }  // Max 3 images
+            let fieldName = fileNames[index]
+            body.append("--\(boundary)\r\n".data())
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"image\(index + 1).jpg\"\r\n".data())
+            body.append("Content-Type: image/jpeg\r\n\r\n".data())
+            body.append(imageData)
+            body.append("\r\n".data())
+        }
+
         body.append("--\(boundary)--\r\n".data())
         req.httpBody = body
 
@@ -180,9 +185,13 @@ struct ContentView: View {
     @StateObject private var api = APIClient()
     @StateObject private var settings = Settings.shared
     @StateObject private var historyManager = HistoryManager.shared
-    @State private var selectedItem: PhotosPickerItem?
-    @State private var pickedImage: UIImage?
-    @State private var pickedImageData: Data?
+
+    // Support for multiple images (1-3)
+    @State private var selectedItems: [PhotosPickerItem?] = [nil, nil, nil]
+    @State private var pickedImages: [UIImage?] = [nil, nil, nil]
+    @State private var pickedImageDatas: [Data?] = [nil, nil, nil]
+    @State private var activeImageCount: Int = 1  // Start with 1 image slot
+
     @State private var prompt: String = ""
     @State private var steps: Double = 0
     @State private var cfg: Double = 0
@@ -285,57 +294,108 @@ struct ContentView: View {
                             .padding(.horizontal)
                             .padding(.top)
                             
-                            // Image Picker Card
+                            // Image Picker Card - Multiple Images
                             VStack(spacing: 16) {
-                                PhotosPicker(selection: $selectedItem, matching: .images, photoLibrary: .shared()) {
-                                    HStack {
-                                        Image(systemName: pickedImage == nil ? "photo.badge.plus" : "photo.on.rectangle.angled")
-                                            .font(.title2)
-                                        Text(pickedImage == nil ? "Select Image" : "Change Image")
-                                            .fontWeight(.medium)
-                                    }
-                                    .foregroundColor(.white)
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [Color.blue, Color.blue.opacity(0.8)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
-                                    .cornerRadius(16)
-                                }
-                                .onChange(of: selectedItem) { _, item in
-                                    Task { await loadPhoto(item) }
-                                }
-                                
-                                // Selected Image Preview
-                                if let ui = pickedImage {
-                                    VStack(alignment: .leading, spacing: 8) {
+                                // Display all active image slots
+                                ForEach(0..<activeImageCount, id: \.self) { index in
+                                    VStack(spacing: 12) {
                                         HStack {
-                                            Text("Input Image")
+                                            Text("Image \(index + 1)")
                                                 .font(.headline)
-                                            Spacer()
-                                            Button {
-                                                showingInputFullScreen = true
-                                            } label: {
-                                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                                .foregroundColor(index == 0 ? .primary : .secondary)
+
+                                            if index == 0 && activeImageCount == 1 {
+                                                Text("(Required)")
                                                     .font(.caption)
                                                     .foregroundColor(.secondary)
                                             }
-                                        }
-                                        
-                                        Image(uiImage: ui)
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(maxHeight: 250)
-                                            .cornerRadius(16)
-                                            .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
-                                            .onTapGesture {
-                                                showingInputFullScreen = true
+
+                                            Spacer()
+
+                                            // Remove button - show for all images when there are 2+ images
+                                            // Only show for images 2+ when there's just 1 image
+                                            if activeImageCount > 1 {
+                                                Button {
+                                                    removeImage(at: index)
+                                                } label: {
+                                                    Image(systemName: "trash")
+                                                        .font(.caption)
+                                                        .foregroundColor(.red)
+                                                }
                                             }
+                                        }
+
+                                        // Photo picker for this slot
+                                        PhotosPicker(selection: Binding(
+                                            get: { selectedItems[index] },
+                                            set: { newValue in
+                                                selectedItems[index] = newValue
+                                                Task { await loadPhoto(newValue, at: index) }
+                                            }
+                                        ), matching: .images, photoLibrary: .shared()) {
+                                            HStack {
+                                                Image(systemName: pickedImages[index] == nil ? "photo.badge.plus" : "photo.on.rectangle.angled")
+                                                    .font(.title3)
+                                                Text(pickedImages[index] == nil ? "Select Image \(index + 1)" : "Change Image \(index + 1)")
+                                                    .fontWeight(.medium)
+                                            }
+                                            .foregroundColor(.white)
+                                            .padding()
+                                            .frame(maxWidth: .infinity)
+                                            .background(
+                                                LinearGradient(
+                                                    colors: [Color.blue, Color.blue.opacity(0.8)],
+                                                    startPoint: .leading,
+                                                    endPoint: .trailing
+                                                )
+                                            )
+                                            .cornerRadius(12)
+                                        }
+
+                                        // Image preview
+                                        if let ui = pickedImages[index] {
+                                            Image(uiImage: ui)
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(maxHeight: 200)
+                                                .cornerRadius(12)
+                                                .shadow(color: .black.opacity(0.1), radius: 10, x: 0, y: 5)
+                                                .onTapGesture {
+                                                    showingInputFullScreen = true
+                                                }
+                                        }
                                     }
+                                    .padding()
+                                    .background(Color(UIColor.tertiarySystemGroupedBackground))
+                                    .cornerRadius(16)
+                                }
+
+                                // Add Image button (show when < 3 images)
+                                if activeImageCount < 3 {
+                                    Button {
+                                        withAnimation {
+                                            activeImageCount += 1
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: "plus.circle.fill")
+                                                .font(.title3)
+                                            Text("Add Image (\(activeImageCount + 1)/3)")
+                                                .fontWeight(.medium)
+                                        }
+                                        .foregroundColor(.blue)
+                                        .padding()
+                                        .frame(maxWidth: .infinity)
+                                        .background(Color(UIColor.tertiarySystemGroupedBackground))
+                                        .cornerRadius(12)
+                                    }
+                                }
+
+                                if activeImageCount > 1 {
+                                    Text("Tip: Reference images in your prompt as 'image 1', 'image 2', etc.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
                                 }
                             }
                             .padding()
@@ -418,15 +478,15 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity)
                             .background(
                                 LinearGradient(
-                                    colors: (pickedImageData != nil && !isBusy) ? [Color.purple, Color.blue] : [Color.gray, Color.gray.opacity(0.8)],
+                                    colors: (hasFirstImage && !isBusy) ? [Color.purple, Color.blue] : [Color.gray, Color.gray.opacity(0.8)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .cornerRadius(16)
-                            .shadow(color: (pickedImageData != nil && !isBusy) ? Color.blue.opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
+                            .shadow(color: (hasFirstImage && !isBusy) ? Color.blue.opacity(0.3) : Color.clear, radius: 10, x: 0, y: 5)
                         }
-                        .disabled(pickedImageData == nil || isBusy)
+                        .disabled(!hasFirstImage || isBusy)
                         .padding(.horizontal)
                         
                         // Status Card
@@ -558,7 +618,7 @@ struct ContentView: View {
             .navigationBarHidden(true)
         }
         .fullScreenCover(isPresented: $showingInputFullScreen) {
-            if let image = pickedImage {
+            if let image = pickedImages[0] {
                 FullScreenImageView(image: image, title: "Input Image", isPresented: $showingInputFullScreen)
             }
         }
@@ -623,9 +683,37 @@ struct ContentView: View {
         }
     }
 
+    // Computed property to check if first image is present
+    private var hasFirstImage: Bool {
+        pickedImageDatas[0] != nil
+    }
+
     // MARK: - Actions
-    private func loadPhoto(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
+    private func removeImage(at index: Int) {
+        // Can't remove if only one image (need at least one)
+        guard activeImageCount > 1 && index >= 0 && index < activeImageCount else { return }
+
+        withAnimation {
+            // Shift images down to fill the gap
+            for i in index..<(activeImageCount - 1) {
+                pickedImages[i] = pickedImages[i + 1]
+                pickedImageDatas[i] = pickedImageDatas[i + 1]
+                selectedItems[i] = selectedItems[i + 1]
+            }
+
+            // Clear the last slot
+            let lastIndex = activeImageCount - 1
+            pickedImages[lastIndex] = nil
+            pickedImageDatas[lastIndex] = nil
+            selectedItems[lastIndex] = nil
+
+            // Decrease active count
+            activeImageCount -= 1
+        }
+    }
+
+    private func loadPhoto(_ item: PhotosPickerItem?, at index: Int) async {
+        guard let item, index >= 0, index < 3 else { return }
         do {
             // Prefer JPEG for size; Photos may deliver HEIC/PNG—convert below
             if let data = try await item.loadTransferable(type: Data.self),
@@ -633,8 +721,8 @@ struct ContentView: View {
                 // Re-encode as medium JPEG to keep uploads snappy; adjust as needed
                 let jpeg = ui.jpegData(compressionQuality: 0.9) ?? data
                 withAnimation {
-                    self.pickedImage = UIImage(data: jpeg)
-                    self.pickedImageData = jpeg
+                    self.pickedImages[index] = UIImage(data: jpeg)
+                    self.pickedImageDatas[index] = jpeg
                 }
             }
         } catch {
@@ -646,7 +734,10 @@ struct ContentView: View {
 
     @MainActor
     private func submit() async {
-        guard let imgData = pickedImageData else { return }
+        // Collect all non-nil image datas
+        let imageDatas = pickedImageDatas.compactMap { $0 }
+        guard !imageDatas.isEmpty else { return }
+
         withAnimation {
             isBusy = true
             resultImage = nil
@@ -657,11 +748,12 @@ struct ContentView: View {
         jobId = nil
 
         do {
-            let resp = try await api.submitEdit(imageData: imgData,
-                                                filename: "upload.jpg",
-                                                prompt: prompt,
-                                                steps: Int(steps),
-                                                trueCfgScale: cfg)
+            let resp = try await api.submitEdit(
+                imageDatas: imageDatas,
+                prompt: prompt,
+                steps: Int(steps),
+                trueCfgScale: cfg
+            )
             jobId = resp.jobId
             withAnimation {
                 statusText = "Queued"

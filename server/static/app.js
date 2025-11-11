@@ -2,17 +2,17 @@
 const API_BASE = window.location.origin;
 
 // State
-let selectedFile = null;
+let selectedFiles = [null, null, null]; // Support up to 3 images
+let activeImageCount = 1; // Start with 1 image slot
 let currentJobId = null;
 let pollInterval = null;
 let healthCheckInterval = null;
 
 // Elements
-const imageInput = document.getElementById('imageInput');
-const uploadBtn = document.getElementById('uploadBtn');
-const uploadBtnText = document.getElementById('uploadBtnText');
-const imagePreview = document.getElementById('imagePreview');
-const previewImg = document.getElementById('previewImg');
+const imageSlots = document.getElementById('imageSlots');
+const addImageBtn = document.getElementById('addImageBtn');
+const addImageBtnText = document.getElementById('addImageBtnText');
+const multiImageTip = document.getElementById('multiImageTip');
 const promptInput = document.getElementById('promptInput');
 const stepsSlider = document.getElementById('stepsSlider');
 const stepsValue = document.getElementById('stepsValue');
@@ -37,34 +37,176 @@ const spinner = document.querySelector('.spinner');
 const sparkleIcon = document.querySelector('.sparkle-icon');
 
 // Event Listeners
-uploadBtn.addEventListener('click', () => imageInput.click());
-imageInput.addEventListener('change', handleImageSelect);
 stepsSlider.addEventListener('input', updateStepsValue);
 cfgSlider.addEventListener('input', updateCfgValue);
 generateBtn.addEventListener('click', generateImage);
 downloadBtn.addEventListener('click', downloadResult);
 newBtn.addEventListener('click', resetForNewEdit);
 unloadBtn.addEventListener('click', unloadModel);
+addImageBtn.addEventListener('click', addImageSlot);
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    initializeImageSlots();
     startHealthCheck();
 });
 
-// Functions
-function handleImageSelect(e) {
+// Image slot management functions
+function initializeImageSlots() {
+    // Create first image slot (required)
+    createImageSlot(0);
+    updateAddImageButton();
+}
+
+function createImageSlot(index) {
+    const slotDiv = document.createElement('div');
+    slotDiv.className = 'image-slot';
+    slotDiv.id = `imageSlot${index}`;
+
+    // Show "Required" badge only for first image when there's only 1 image
+    // Show trash icon for all images when there are 2+ images
+    const showRequired = index === 0 && activeImageCount === 1;
+    const showTrash = activeImageCount > 1;
+
+    slotDiv.innerHTML = `
+        <div class="image-slot-header">
+            <h3>Image ${index + 1}</h3>
+            ${showRequired ? '<span class="required-badge">Required</span>' : ''}
+            ${showTrash ? `
+                <button class="remove-image-btn" onclick="removeImageSlot(${index})" title="Remove image">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                </button>
+            ` : ''}
+        </div>
+        <input type="file" id="imageInput${index}" accept="image/*" hidden>
+        <button class="upload-btn" onclick="document.getElementById('imageInput${index}').click()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span id="uploadBtnText${index}">Select Image ${index + 1}</span>
+        </button>
+        <div id="imagePreview${index}" class="image-preview hidden">
+            <img id="previewImg${index}" alt="Selected image ${index + 1}">
+        </div>
+    `;
+
+    imageSlots.appendChild(slotDiv);
+
+    // Add event listener for this slot
+    document.getElementById(`imageInput${index}`).addEventListener('change', (e) => handleImageSelect(e, index));
+}
+
+function handleImageSelect(e, index) {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
-        selectedFile = file;
+        selectedFiles[index] = file;
         const reader = new FileReader();
         reader.onload = (e) => {
+            const previewImg = document.getElementById(`previewImg${index}`);
+            const imagePreview = document.getElementById(`imagePreview${index}`);
+            const uploadBtnText = document.getElementById(`uploadBtnText${index}`);
+
             previewImg.src = e.target.result;
             imagePreview.classList.remove('hidden');
-            uploadBtnText.textContent = 'Change Image';
-            generateBtn.disabled = false;
+            uploadBtnText.textContent = `Change Image ${index + 1}`;
+
+            // Enable generate button if first image is selected
+            if (index === 0) {
+                generateBtn.disabled = false;
+            }
+
+            // Show add button if this is the first slot and we don't have more slots yet
+            updateAddImageButton();
         };
         reader.readAsDataURL(file);
         hideError();
+    }
+}
+
+function addImageSlot() {
+    if (activeImageCount < 3) {
+        activeImageCount++;
+
+        // Recreate all slots to update trash icon visibility
+        imageSlots.innerHTML = '';
+        for (let i = 0; i < activeImageCount; i++) {
+            createImageSlot(i);
+            // Restore the file if it exists
+            if (selectedFiles[i]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const previewImg = document.getElementById(`previewImg${i}`);
+                    const imagePreview = document.getElementById(`imagePreview${i}`);
+                    const uploadBtnText = document.getElementById(`uploadBtnText${i}`);
+
+                    previewImg.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                    uploadBtnText.textContent = `Change Image ${i + 1}`;
+                };
+                reader.readAsDataURL(selectedFiles[i]);
+            }
+        }
+
+        updateAddImageButton();
+        updateMultiImageTip();
+    }
+}
+
+function removeImageSlot(index) {
+    // Can't remove if only one image (need at least one)
+    if (activeImageCount <= 1) return;
+
+    // Shift files down to fill the gap
+    for (let i = index; i < activeImageCount - 1; i++) {
+        selectedFiles[i] = selectedFiles[i + 1];
+    }
+    selectedFiles[activeImageCount - 1] = null;
+
+    activeImageCount--;
+
+    // Recreate all slots to fix numbering and update UI
+    imageSlots.innerHTML = '';
+    for (let i = 0; i < activeImageCount; i++) {
+        createImageSlot(i);
+        // Restore the file if it exists
+        if (selectedFiles[i]) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const previewImg = document.getElementById(`previewImg${i}`);
+                const imagePreview = document.getElementById(`imagePreview${i}`);
+                const uploadBtnText = document.getElementById(`uploadBtnText${i}`);
+
+                previewImg.src = e.target.result;
+                imagePreview.classList.remove('hidden');
+                uploadBtnText.textContent = `Change Image ${i + 1}`;
+            };
+            reader.readAsDataURL(selectedFiles[i]);
+        }
+    }
+
+    updateAddImageButton();
+    updateMultiImageTip();
+}
+
+function updateAddImageButton() {
+    if (activeImageCount < 3 && selectedFiles[0] !== null) {
+        addImageBtn.classList.remove('hidden');
+        addImageBtnText.textContent = `Add Image (${activeImageCount + 1}/3)`;
+    } else {
+        addImageBtn.classList.add('hidden');
+    }
+}
+
+function updateMultiImageTip() {
+    if (activeImageCount > 1) {
+        multiImageTip.classList.remove('hidden');
+    } else {
+        multiImageTip.classList.add('hidden');
     }
 }
 
@@ -77,8 +219,8 @@ function updateCfgValue() {
 }
 
 async function generateImage() {
-    if (!selectedFile) {
-        showError('Please select an image first');
+    if (!selectedFiles[0]) {
+        showError('Please select at least one image');
         return;
     }
 
@@ -93,9 +235,17 @@ async function generateImage() {
     hideError();
     resultCard.classList.add('hidden');
 
-    // Prepare form data
+    // Prepare form data with multiple images
     const formData = new FormData();
-    formData.append('file', selectedFile);
+    const fileFields = ['file', 'file2', 'file3'];
+
+    // Add all non-null images
+    selectedFiles.forEach((file, index) => {
+        if (file) {
+            formData.append(fileFields[index], file);
+        }
+    });
+
     formData.append('prompt', prompt);
     formData.append('num_inference_steps', stepsSlider.value);
     formData.append('true_cfg_scale', cfgSlider.value);
@@ -114,7 +264,7 @@ async function generateImage() {
 
         const data = await response.json();
         currentJobId = data.job_id;
-        
+
         // Start polling
         updateStatus('Queued', '⏳');
         startPolling();
@@ -193,12 +343,17 @@ async function displayResult(resultUrl) {
 
 function setGenerating(isGenerating) {
     generateBtn.disabled = isGenerating;
-    imageInput.disabled = isGenerating;
-    uploadBtn.disabled = isGenerating;
     promptInput.disabled = isGenerating;
     stepsSlider.disabled = isGenerating;
     cfgSlider.disabled = isGenerating;
-    
+    addImageBtn.disabled = isGenerating;
+
+    // Disable all image inputs
+    for (let i = 0; i < activeImageCount; i++) {
+        const input = document.getElementById(`imageInput${i}`);
+        if (input) input.disabled = isGenerating;
+    }
+
     if (isGenerating) {
         generateBtnText.textContent = 'Processing...';
         spinner.classList.remove('hidden');

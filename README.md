@@ -5,9 +5,10 @@ An AI-powered image editing application with iOS and web interfaces that uses na
 ## Features
 
 - 🎨 **Natural Language Editing**: Describe changes in plain English
+- 🖼️ **Multi-Image Support**: Combine elements from up to 3 images in a single edit
 - 📱 **iOS App**: Native SwiftUI application with full Photos integration
 - 🌐 **Web App**: Browser-based interface accessible from any device
-- 🤖 **Powered by Qwen-Image-Edit**: State-of-the-art AI model for image transformation
+- 🤖 **Powered by Qwen-Image-Edit-2509**: State-of-the-art AI model for image transformation
 - 📊 **Real-time Progress**: Monitor generation status and progress
 - 💾 **Smart Memory Management**: Automatic model loading/unloading to optimize GPU usage
 - 🕐 **History Tracking**: Keep track of all your edits (iOS only)
@@ -106,9 +107,11 @@ See [CLAUDE.md](CLAUDE.md) for AI assistant development guidelines.
 
 ## Documentation
 
+- [Multi-Image Editing Guide](docs/MULTI_IMAGE_EDITING.md) - **New!** Learn how to combine multiple images
 - [Architecture Overview](docs/architecture.md)
 - [API Documentation](docs/api.md)
 - [Web App Guide](docs/web-app.md)
+- [Getting Started](docs/GETTING_STARTED.md)
 
 ## License
 

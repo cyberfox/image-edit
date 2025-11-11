@@ -35,25 +35,28 @@
             </div>
         </header>
 
-        <!-- Image Upload Card -->
+        <!-- Image Upload Card - Multiple Images -->
         <div class="card">
-            <div class="image-upload-area">
-                <input type="file" id="imageInput" accept="image/*" hidden>
-                <button id="uploadBtn" class="upload-btn">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
-                    <span id="uploadBtnText">Select Image</span>
-                </button>
-                
-                <div id="imagePreview" class="image-preview hidden">
-                    <div class="preview-header">
-                        <h3>Input Image</h3>
-                    </div>
-                    <img id="previewImg" alt="Selected image">
-                </div>
+            <div id="imageSlots" class="image-slots">
+                <!-- Image slots will be added dynamically -->
+            </div>
+
+            <button id="addImageBtn" class="add-image-btn hidden">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="16"/>
+                    <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                <span id="addImageBtnText">Add Image (2/3)</span>
+            </button>
+
+            <div id="multiImageTip" class="multi-image-tip hidden">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 16v-4"/>
+                    <path d="M12 8h.01"/>
+                </svg>
+                <span>Tip: Reference images in your prompt as 'image 1', 'image 2', etc.</span>
             </div>
         </div>
 

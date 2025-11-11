@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
 
-from diffusers import QwenImageEditPipeline
+from diffusers import QwenImageEditPlusPipeline
 
 # -----------------------
 # Config
@@ -48,7 +48,7 @@ JOBS_LOCK = threading.Lock()
 # -----------------------
 # Model management
 # -----------------------
-PIPELINE: Optional[QwenImageEditPipeline] = None
+PIPELINE: Optional[QwenImageEditPlusPipeline] = None
 PIPELINE_LOCK = threading.Lock()
 LAST_REQUEST_TIME = time.time()
 UNLOAD_TIMER = None
@@ -56,8 +56,8 @@ UNLOAD_TIMER = None
 def load_model():
     global PIPELINE
     print(f"Loading model... (timeout set to {MODEL_TIMEOUT_MINUTES} minutes)")
-    PIPELINE = QwenImageEditPipeline.from_pretrained(
-        "Qwen/Qwen-Image-Edit",
+    PIPELINE = QwenImageEditPlusPipeline.from_pretrained(
+        "Qwen/Qwen-Image-Edit-2509",
         torch_dtype=torch.bfloat16,
         device_map="balanced",     # or "auto", "balanced_low_0"
         # max_memory={0: "20GiB", 1: "20GiB"},  # uncomment/tune if needed
@@ -148,10 +148,10 @@ def _save_pil(img: Image.Image, job_id: str) -> str:
 
 import inspect
 
-def _run_edit(job_id, image, prompt, negative_prompt, steps, true_cfg_scale, seed):
+def _run_edit(job_id, images, prompt, negative_prompt, steps, true_cfg_scale, seed):
     try:
         _set_job(job_id, status="running", progress=0.0)
-        
+
         # Ensure model is loaded before processing
         ensure_model_loaded()
 
@@ -172,8 +172,14 @@ def _run_edit(job_id, image, prompt, negative_prompt, steps, true_cfg_scale, see
             _set_job(job_id, progress=min(100.0, round(pct, 1)))
             return cb_kwargs  # important: must return this dict
 
+        # Convert images to RGB - handle both single image and list
+        if isinstance(images, list):
+            processed_images = [img.convert("RGB") for img in images]
+        else:
+            processed_images = [images.convert("RGB")]
+
         call_kwargs = dict(
-            image=image.convert("RGB"),
+            image=processed_images,
             prompt=prompt,
             negative_prompt=negative_prompt,
             num_inference_steps=steps,
@@ -243,8 +249,8 @@ def health():
         minutes_since_last_request = time_since_last_request / 60
     
     return {
-        "ok": True, 
-        "model": "Qwen/Qwen-Image-Edit",
+        "ok": True,
+        "model": "Qwen/Qwen-Image-Edit-2509",
         "model_loaded": model_loaded,
         "timeout_minutes": MODEL_TIMEOUT_MINUTES,
         "minutes_since_last_request": round(minutes_since_last_request, 2),
@@ -266,19 +272,43 @@ class SubmitResponse(BaseModel):
 
 @app.post("/edit", response_model=SubmitResponse)
 async def submit_edit(
-    file: UploadFile = File(..., description="Input image"),
+    file: UploadFile = File(..., description="Input image (required)"),
+    file2: Optional[UploadFile] = File(None, description="Optional second image"),
+    file3: Optional[UploadFile] = File(None, description="Optional third image"),
     prompt: str = Form(...),
     negative_prompt: str = Form(" "),
     num_inference_steps: int = Form(50),
     true_cfg_scale: float = Form(4.0),
     seed: Optional[int] = Form(None),
 ):
-    # Read image into PIL
+    # Read images into PIL - build a list
+    images = []
+
+    # First image is required
     data = await file.read()
     try:
         image = Image.open(io.BytesIO(data)).convert("RGB")
+        images.append(image)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image")
+
+    # Second image is optional
+    if file2:
+        data2 = await file2.read()
+        try:
+            image2 = Image.open(io.BytesIO(data2)).convert("RGB")
+            images.append(image2)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid second image")
+
+    # Third image is optional
+    if file3:
+        data3 = await file3.read()
+        try:
+            image3 = Image.open(io.BytesIO(data3)).convert("RGB")
+            images.append(image3)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid third image")
 
     job_id = uuid.uuid4().hex
     job = Job(
@@ -295,7 +325,7 @@ async def submit_edit(
     EXECUTOR.submit(
         _run_edit,
         job_id,
-        image,
+        images,
         prompt,
         negative_prompt,
         num_inference_steps,
