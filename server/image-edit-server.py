@@ -26,6 +26,9 @@ os.makedirs(RESULTS_DIR, exist_ok=True)
 # Model timeout configuration (in minutes)
 MODEL_TIMEOUT_MINUTES = float(os.environ.get("MODEL_TIMEOUT_MINUTES", "30"))
 
+# Skip model loading for testing (set MODEL_SKIP_LOAD=1)
+SKIP_MODEL_LOAD = os.environ.get("MODEL_SKIP_LOAD", "").lower() in ("1", "true", "yes")
+
 # Limit concurrent jobs; start with 1 to avoid OOM, raise to 2 if GPUs can handle it.
 EXECUTOR = ThreadPoolExecutor(max_workers=1)
 
@@ -41,6 +44,7 @@ class Job(BaseModel):
     error: Optional[str] = None
     result_path: Optional[str] = None
     steps: int = 50
+    image_count: int = 1   # Number of images submitted (1-3)
 
 JOBS: Dict[str, Job] = {}
 JOBS_LOCK = threading.Lock()
@@ -55,6 +59,12 @@ UNLOAD_TIMER = None
 
 def load_model():
     global PIPELINE
+    if SKIP_MODEL_LOAD:
+        print("⚠ MODEL_SKIP_LOAD is set - skipping model loading (testing mode)")
+        print("  API endpoints will work but jobs will remain queued")
+        PIPELINE = None  # Keep as None for testing
+        return
+
     print(f"Loading model... (timeout set to {MODEL_TIMEOUT_MINUTES} minutes)")
     PIPELINE = QwenImageEditPlusPipeline.from_pretrained(
         "Qwen/Qwen-Image-Edit-2509",
@@ -62,7 +72,7 @@ def load_model():
         device_map="balanced",     # or "auto", "balanced_low_0"
         # max_memory={0: "20GiB", 1: "20GiB"},  # uncomment/tune if needed
     )
-    
+
     # Optional memory savers
     PIPELINE.enable_attention_slicing()
     PIPELINE.vae.enable_slicing()
@@ -102,9 +112,10 @@ def ensure_model_loaded():
     global LAST_REQUEST_TIME
     with PIPELINE_LOCK:
         LAST_REQUEST_TIME = time.time()
-        if PIPELINE is None:
+        if PIPELINE is None and not SKIP_MODEL_LOAD:
             load_model()
-        schedule_unload_check()
+        if not SKIP_MODEL_LOAD:
+            schedule_unload_check()
 
 # Load model on startup
 ensure_model_loaded()
@@ -317,6 +328,7 @@ async def submit_edit(
         prompt=prompt,
         created_at=datetime.utcnow().isoformat(),
         steps=num_inference_steps,
+        image_count=len(images),
     )
     with JOBS_LOCK:
         JOBS[job_id] = job
