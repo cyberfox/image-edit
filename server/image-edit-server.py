@@ -44,6 +44,7 @@ class Job(BaseModel):
     error: Optional[str] = None
     result_path: Optional[str] = None
     steps: int = 50
+    image_count: int = 1   # Number of images submitted (1-3)
 
 JOBS: Dict[str, Job] = {}
 JOBS_LOCK = threading.Lock()
@@ -327,6 +328,7 @@ async def submit_edit(
         prompt=prompt,
         created_at=datetime.utcnow().isoformat(),
         steps=num_inference_steps,
+        image_count=len(images),
     )
     with JOBS_LOCK:
         JOBS[job_id] = job

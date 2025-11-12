@@ -315,22 +315,59 @@ class TestJobStatus:
 class TestImageProcessing:
     """Test image processing logic"""
 
-    def test_image_list_handling(self):
-        """Test that images are correctly processed as lists
+    def test_image_count_tracking(self, client):
+        """Test that image_count field correctly reflects number of images submitted"""
+        # Test single image
+        img1_bytes = image_to_bytes(create_test_image(color=(255, 0, 0)))
 
-        NOTE: This test verifies image list handling at the API level since
-        direct testing of _run_edit requires complex mocking of torch and PIPELINE.
-        The integration tests provide better coverage of the actual behavior.
-        """
-        # The multi-image functionality is already well-tested by:
-        # - test_single_image_submission (verifies 1 image passes as list)
-        # - test_two_images_submission (verifies 2 images pass as list)
-        # - test_three_images_submission (verifies 3 images pass as list)
-        # - test_full_workflow_multi_image (integration test)
-        #
-        # This test now serves as documentation that image list handling
-        # is tested at the integration level rather than unit level.
-        assert True, "Image list handling is tested via integration tests"
+        with patch.object(server.EXECUTOR, 'submit'):
+            response = client.post(
+                "/edit",
+                files={"file": ("img1.png", io.BytesIO(img1_bytes), "image/png")},
+                data={"prompt": "test", "num_inference_steps": 50, "true_cfg_scale": 4.0}
+            )
+            job_id_1 = response.json()["job_id"]
+
+            # Check job reports 1 image
+            job_response = client.get(f"/jobs/{job_id_1}")
+            assert job_response.json()["image_count"] == 1
+
+        # Test two images
+        img2_bytes = image_to_bytes(create_test_image(color=(0, 255, 0)))
+
+        with patch.object(server.EXECUTOR, 'submit'):
+            response = client.post(
+                "/edit",
+                files={
+                    "file": ("img1.png", io.BytesIO(img1_bytes), "image/png"),
+                    "file2": ("img2.png", io.BytesIO(img2_bytes), "image/png")
+                },
+                data={"prompt": "test", "num_inference_steps": 50, "true_cfg_scale": 4.0}
+            )
+            job_id_2 = response.json()["job_id"]
+
+            # Check job reports 2 images
+            job_response = client.get(f"/jobs/{job_id_2}")
+            assert job_response.json()["image_count"] == 2
+
+        # Test three images
+        img3_bytes = image_to_bytes(create_test_image(color=(0, 0, 255)))
+
+        with patch.object(server.EXECUTOR, 'submit'):
+            response = client.post(
+                "/edit",
+                files={
+                    "file": ("img1.png", io.BytesIO(img1_bytes), "image/png"),
+                    "file2": ("img2.png", io.BytesIO(img2_bytes), "image/png"),
+                    "file3": ("img3.png", io.BytesIO(img3_bytes), "image/png")
+                },
+                data={"prompt": "test", "num_inference_steps": 50, "true_cfg_scale": 4.0}
+            )
+            job_id_3 = response.json()["job_id"]
+
+            # Check job reports 3 images
+            job_response = client.get(f"/jobs/{job_id_3}")
+            assert job_response.json()["image_count"] == 3
 
 
 class TestMultiImageIntegration:
@@ -354,7 +391,9 @@ class TestMultiImageIntegration:
             # Check initial status
             response = client.get(f"/jobs/{job_id}")
             assert response.status_code == 200
-            assert response.json()["status"] == "queued"
+            job_data = response.json()
+            assert job_data["status"] == "queued"
+            assert job_data["image_count"] == 1
 
     def test_full_workflow_multi_image(self, client):
         """Test complete workflow with multiple images"""
@@ -386,6 +425,7 @@ class TestMultiImageIntegration:
             assert response.status_code == 200
             job_data = response.json()
             assert job_data["prompt"] == "combine all images"
+            assert job_data["image_count"] == 3
 
             # Verify correct number of images were passed
             args = mock_submit.call_args[0]
